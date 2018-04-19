@@ -13,6 +13,8 @@ public class Boid : MonoBehaviour
     public Transform flee;    
     public float pathRadius;
     public List<Transform> pathCheckPoints;
+    public Vector3 minBounds;
+    public Vector3 maxBounds;
 
     // Use this for initialization
     void Start()
@@ -26,6 +28,40 @@ public class Boid : MonoBehaviour
         Wander();
         rigidbody.velocity = Vector3.ClampMagnitude(rigidbody.velocity, maxSpeed);
         transform.LookAt(transform.position + rigidbody.velocity);        
+    }
+
+    public void CheckBounds()
+    {
+        Vector3 desired = rigidbody.velocity;
+        if (transform.position.x < minBounds.x)
+        {
+            desired = (new Vector3(minBounds.x, transform.position.y, transform.position.z) - transform.position);
+        }
+        if (transform.position.y < minBounds.y)
+        {
+            desired = (new Vector3(transform.position.x, minBounds.y, transform.position.z) - transform.position);
+        }
+        if (transform.position.z < minBounds.z)
+        {
+            desired = (new Vector3(transform.position.x, transform.position.y, minBounds.z) - transform.position);
+        }
+        if (transform.position.x > maxBounds.x)
+        {
+            desired = (new Vector3(maxBounds.x, transform.position.y, transform.position.z) - transform.position);
+        }
+        if (transform.position.y > maxBounds.y)
+        {
+            desired = (new Vector3(transform.position.x, maxBounds.y, transform.position.z) - transform.position);
+        }
+
+        if (transform.position.z > maxBounds.z)
+        {
+            desired = (new Vector3(transform.position.x, transform.position.y, maxBounds.z) - transform.position);
+        }
+
+        Vector3 steer = 1.3f * Vector3.ClampMagnitude((desired - rigidbody.velocity), maxForce);
+
+        rigidbody.AddForce(steer);       
     }
 
     public void Flee(Vector3 ThreatPosition)
