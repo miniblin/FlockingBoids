@@ -6,8 +6,7 @@ public class Boid : MonoBehaviour
 {
     public float maxSpeed;
     public float maxForce;
-    public float arrivalRadius;
-    private Rigidbody rigidbody;
+    public float arrivalRadius;    
     public Transform target;
     public Transform target;
     public Transform flee;    
@@ -15,6 +14,9 @@ public class Boid : MonoBehaviour
     public List<Transform> pathCheckPoints;
     public Vector3 minBounds;
     public Vector3 maxBounds;
+    private Rigidbody rigidbody;
+
+    private int boidArraySize;
 
     // Use this for initialization
     void Start()
@@ -28,6 +30,11 @@ public class Boid : MonoBehaviour
         Wander();
         rigidbody.velocity = Vector3.ClampMagnitude(rigidbody.velocity, maxSpeed);
         transform.LookAt(transform.position + rigidbody.velocity);        
+    }
+
+    public void SetBoidArraySize(int size)
+    {
+        boidArraySize = size;
     }
 
     public void CheckBounds()
@@ -78,6 +85,7 @@ public class Boid : MonoBehaviour
         Vector3 desired = (target - transform.position);
         float squaredDistance = desired.sqrMagnitude;
         desired.Normalize();
+
         //slow the boid down as it approaches its destination
         if (squaredDistance < (arrivalRadius * arrivalRadius))
         {
@@ -87,6 +95,7 @@ public class Boid : MonoBehaviour
         {
             desired *= maxSpeed;
         }
+
         Vector3 steer = Vector3.ClampMagnitude((desired - rigidbody.velocity), maxForce);
         rigidbody.AddForce(steer);
     }
@@ -97,11 +106,13 @@ public class Boid : MonoBehaviour
         Vector3 pathTarget = new Vector3(0, 0, 0);
         float distanceFromNormal = 0;
         float closestNormal = 10000;
+
         for (int i = 0; i < pathCheckPoints.Count - 1; i++)
         {
             Vector3 pathStart = pathCheckPoints[i].position;
             Vector3 pathEnd = pathCheckPoints[i + 1].position;
             Vector3 normal = PointOfNormal(transform.position, pathStart, pathEnd);
+
             //check normal is on line
             if (DistanceLineSegmentPoint(pathStart, pathEnd, normal) > 0.0000000001)
             {
@@ -117,6 +128,7 @@ public class Boid : MonoBehaviour
             }
             Debug.DrawLine(pathEnd, pathStart, Color.blue);
         }
+
         if (closestNormal > pathRadius)
         {
             Seek(pathTarget);
@@ -133,11 +145,78 @@ public class Boid : MonoBehaviour
         Seek(new Vector3(randomDirection.x, transform.position.y, randomDirection.z));
     }
 
-    public void Flock()
-    {
 
+    public void Flock(GameObject[,,] neighbours, int radius, int x, int y, int z, float desiredSeperation, float neighbourDistance)
+    {    
+        Vector3 difference;
+        float d;
+       
+        seperationCount = 0;
+        cohesionCount = 0;
+        alignmentCount = 0;
+
+        sumOfFleeVectors = Vector3.zero;
+        sumOfNeighborPositions = Vector3.zero;
+        sumOfNeighborPositions = Vector3.zero;
+
+        for (int i = (-neighbourRadius); i <= neighbourRadius; i++)
+        {
+            for (int j = (-neighbourRadius); j <= neighbourRadius; j++)
+            {
+                for (int k = (-neighbourRadius); k <= neighbourRadius; k++)
+                {
+                    if (x + i < boidArraySize && y + j < boidArraySize && z + k < boidArraySize && x + i >= 0 && y + j >= 0 && z + k >= 0)
+                    {
+                        //seperation
+                        d = Vector3.Distance(transform.position, neighbours[x + i, y + j, z + k].transform.position);
+                        if (d < desiredSeperation && (d > 0))
+                        {
+                            difference = (transform.position - neighbours[x + i, y + j, z + k].transform.position);
+                            difference.Normalize();
+                            difference /= d;
+                            sumOfFleeVectors += difference;
+                            seperationCount++;
+                        }
+
+                        //cohesion and Alignment
+                        if (d < neighbourDistance && (d > 0))
+                        {
+                            sumOfNeighborPositions += neighbours[x + i, y + j, z + k].transform.position;
+                            cohesionCount++;
+                            
+                            sumOfNeighbourVeleocities += neighbours[x + i, y + j, z + k].GetComponent<Rigidbody>().velocity;
+                            alignmentCount++;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (seperationCount > 0)
+        {
+            sumOfFleeVectors /= seperationCount;
+            sumOfFleeVectors.Normalize();
+            sumOfFleeVectors *= (maxSpeed);
+            Vector3 seperationSteer = Vector3.ClampMagnitude((sumOfFleeVectors - rigidbody.velocity), maxForce);
+            rigidbody.AddForce(seperationSteer);
+        }
+
+        if (cohesionCount > 0)
+        {
+            sumOfNeighborPositions /= cohesionCount;
+            Seek(sumOfNeighborPositions);
+        }
+
+        if (alignmentCount > 0)
+        {
+            sumOfNeighbourVeleocities /= alignmentCount;
+            sumOfNeighbourVeleocities.Normalize();
+            sumOfNeighbourVeleocities *= (maxSpeed);
+            Vector3 steer = Vector3.ClampMagnitude((sumOfNeighbourVeleocities - rigidbody.velocity), maxForce);
+            rigidbody.AddForce(0.4f * steer);
+        }
     }
-    
+
     private Vector3 PointOfNormal(Vector3 boidLocation, Vector3 pathStart, Vector3 pathEnd)
     {
         Vector3 path = pathEnd - pathStart;
